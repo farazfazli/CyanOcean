@@ -102,13 +102,25 @@ func create(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Println(string(qemu))
 
-	editCommand := fmt.Sprintf(`
+	editCommand := ""
+	if vm.Os == "centos" {
+	editCommand = fmt.Sprintf(`
 virt-edit -a %s "/etc/sysconfig/network" -e 's/GW/%s/' && \
 virt-edit -a %s "/etc/sysconfig/network" -e 's/V6GW/%s/' && \
 virt-edit -a %s "/etc/sysconfig/network-scripts/ifcfg-eth0" -e 's/IP/%s/' && \
 virt-edit -a %s "/etc/sysconfig/network-scripts/ifcfg-eth0" -e 's/IPV6/%s\/128/' && \
 virt-edit -a %s "/etc/sysconfig/network" "/etc/hostname" "/etc/hosts" -e 's/HN/%s/'
-	`, imageName, gw, imageName, ipv6gw, imageName, "69.30.244.115", imageName, "2604:4300:a:6a::3", imageName, imageName)
+	`, imageName, gw, imageName, ipv6gw, imageName, "69.30.244.115", imageName, "2604:4300:a:6a::3", imageName, imageName)	
+	} else if vm.Os == "debian" {
+		editCommand = fmt.Sprintf(`
+virt-edit -a %s.qcow2 "/etc/network/interfaces" -e 's/GW/%s/' && \
+virt-edit -a %s.qcow2 "/etc/network/interfaces" -e 's/V6GW/%s/' && \
+virt-edit -a %s.qcow2 "/etc/network/interfaces" -e 's/IP/%s/' && \
+virt-edit -a %s.qcow2 "/etc/network/interfaces" -e 's/IPV6/%s/' && \
+virt-edit -a %s.qcow2 "/etc/hostname" "/etc/hosts" -e 's/HN/%s/'
+`, imageName, gw, imageName, ipv6gw, imageName, "69.30.244.115", imageName, "2604:4300:a:6a::3", imageName, imageName)
+	}
+
 	edit, err := exec.Command(sh, c, editCommand).Output()
 	if err != nil {
 		fmt.Println("Error editing VM image")
@@ -118,7 +130,7 @@ virt-edit -a %s "/etc/sysconfig/network" "/etc/hostname" "/etc/hosts" -e 's/HN/%
 	}
 	fmt.Println(string(edit))
 
-	addKeyCommand := fmt.Sprintf(`guestfish -a %s -i write /root/.ssh/authorized_keys "%s"`, imageName, vm.Key)
+	addKeyCommand := fmt.Sprintf(`guestfish -a ~/%s -i write /root/.ssh/authorized_keys "%s"`, imageName, vm.Key)
 	addKey, err := exec.Command(sh, c, addKeyCommand).Output()
 	if err != nil {
 		fmt.Println("Error adding SSH key")
