@@ -1,28 +1,29 @@
 package main
 
 import (
-	"net/http"
-	"fmt"
-	"time"
-	"log"
 	"encoding/json"
-	"os/exec"
+	"fmt"
+	"log"
+	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
+	"time"
 )
 
 type VM struct {
-	Key string `json:"key"`
-	Name string `json:"name"`
-	Os string `json:"os"`
-	Ram int `json:"ram"`
-	Vcpus int `json:"cpu"`
-	Storage int `json:"storage"`
+	Key     string `json:"key"`
+	Name    string `json:"name"`
+	Os      string `json:"os"`
+	Ram     int    `json:"ram"`
+	Vcpus   int    `json:"cpu"`
+	Storage int    `json:"storage"`
 }
 
 // ------------CONFIG----------- //
 const gw = "69.30.244.113"
 const ipv6gw = "2604:4300:a:6a::1"
+
 //--––––------------------------//
 
 const sh = "/bin/sh"
@@ -45,12 +46,13 @@ func main() {
 func create(w http.ResponseWriter, r *http.Request) {
 	var vm VM
 	err := json.NewDecoder(r.Body).Decode(&vm)
-	if err != nil || len(vm.Key) < 10 || vm.Name == "" || vm.Os == "" || vm.Ram == 0 || vm.Vcpus == 0 || vm.Storage == 0 || vm.Ram / 512 < 1 || vm.Storage > 50 {
+	if err != nil || len(vm.Key) < 10 || vm.Name == "" || vm.Os == "" || vm.Ram == 0 || vm.Vcpus == 0 || vm.Storage == 0 ||
+		vm.Ram/512 < 1 || vm.Storage > 50 {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	if (vm.Os != "centos" && vm.Os != "debian") {
+	if vm.Os != "centos" && vm.Os != "debian" {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "Incorrect OS parameters, choose centos or debian")
 		return
@@ -78,14 +80,14 @@ func create(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Hostname: %v || OS: %v || %vmb RAM || %v cores || Storage: %vGBs\n", vm.Name, vm.Os, vm.Ram, vm.Vcpus, vm.Storage)
 
 	copyCommand := ""
-	if		  vm.Os == "centos" {
+	if vm.Os == "centos" {
 		copyCommand = fmt.Sprintf("cp /var/lib/libvirt/images/CentOS-7-Base.qcow2 ~/%v.qcow2")
 	} else if vm.Os == "debian" {
 		copyCommand = fmt.Sprintf("cp /var/lib/libvirt/images/Debian-8.7-Base.qcow2 ~%v.qcow2")
 	}
-	
+
 	cp, err := exec.Command(sh, c, copyCommand).Output()
-		if err != nil {
+	if err != nil {
 		fmt.Println(err)
 		w.WriteHeader(http.StatusForbidden)
 		return
@@ -104,13 +106,13 @@ func create(w http.ResponseWriter, r *http.Request) {
 
 	editCommand := ""
 	if vm.Os == "centos" {
-	editCommand = fmt.Sprintf(`
+		editCommand = fmt.Sprintf(`
 virt-edit -a %s "/etc/sysconfig/network" -e 's/GW/%s/' && \
 virt-edit -a %s "/etc/sysconfig/network" -e 's/V6GW/%s/' && \
 virt-edit -a %s "/etc/sysconfig/network-scripts/ifcfg-eth0" -e 's/IP/%s/' && \
 virt-edit -a %s "/etc/sysconfig/network-scripts/ifcfg-eth0" -e 's/IPV6/%s\/128/' && \
 virt-edit -a %s "/etc/sysconfig/network" "/etc/hostname" "/etc/hosts" -e 's/HN/%s/'
-	`, imageName, gw, imageName, ipv6gw, imageName, "69.30.244.115", imageName, "2604:4300:a:6a::3", imageName, imageName)	
+	`, imageName, gw, imageName, ipv6gw, imageName, "69.30.244.115", imageName, "2604:4300:a:6a::3", imageName, imageName)
 	} else if vm.Os == "debian" {
 		editCommand = fmt.Sprintf(`
 virt-edit -a %s.qcow2 "/etc/network/interfaces" -e 's/GW/%s/' && \
